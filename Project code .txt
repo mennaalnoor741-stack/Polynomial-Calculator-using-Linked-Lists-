@@ -1,0 +1,503 @@
+/*
+    Polynomial Calculator using Linked Lists (C)
+    ----------------------------------------------
+    Operations supported:
+        1) Addition of two polynomials
+        2) Subtraction of two polynomials
+        3) Multiplication of two polynomials
+        4) Derivative of a polynomial
+        5) Evaluate a polynomial at a given value of x
+        6) Division of two polynomials (quotient + remainder)
+        7) Display of polynomials
+
+    Each term of a polynomial is stored as a node in a singly linked list:
+        coeff -> coefficient of the term
+        exp   -> exponent (power) of the term
+        next  -> pointer to the next term
+
+    The list is kept sorted by descending exponent for easy printing
+    and for straightforward add/subtract logic.
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+
+/* ---------- Node definition ---------- */
+typedef struct Node
+{
+	int coeff;
+	int exp;
+	struct Node *next;
+} Node;
+
+/* Forward declaration */
+void freePolynomial(Node *head);
+
+/* ---------- Safe input helpers ---------- */
+/* Discards leftover characters up to (and including) the next newline */
+void clearInputBuffer()
+{
+	int c;
+	while ((c = getchar()) != '\n' && c != EOF)
+		;
+}
+
+/* Reads an int safely; keeps asking until a valid integer is entered */
+int readInt()
+{
+	int value;
+	while (scanf("%d", &value) != 1)
+	{
+		printf("Invalid input! Please enter a whole number: ");
+		clearInputBuffer();
+	}
+	clearInputBuffer();
+	return value;
+}
+
+/* Reads a double safely; keeps asking until a valid number is entered */
+double readDouble()
+{
+	double value;
+	while (scanf("%lf", &value) != 1)
+	{
+		printf("Invalid input! Please enter a number: ");
+		clearInputBuffer();
+	}
+	clearInputBuffer();
+	return value;
+}
+
+/* ---------- Helper: create a new node ---------- */
+Node *createNode(int coeff, int exp)
+{
+	Node *newNode = (Node *)malloc(sizeof(Node));
+	if (!newNode)
+	{
+		printf("Memory allocation failed!\n");
+		exit(1);
+	}
+	newNode->coeff = coeff;
+	newNode->exp = exp;
+	newNode->next = NULL;
+	return newNode;
+}
+
+/*
+   Insert a term into the polynomial list, keeping it sorted by
+   descending exponent. If a term with the same exponent already
+   exists, the coefficients are combined (and the node removed if
+   the result becomes zero).
+*/
+void insertTerm(Node **head, int coeff, int exp)
+{
+	if (coeff == 0)
+		return; /* skip zero-coefficient terms */
+
+	Node *newNode = createNode(coeff, exp);
+
+	/* Empty list or should be inserted at the head */
+	if (*head == NULL || (*head)->exp < exp)
+	{
+		newNode->next = *head;
+		*head = newNode;
+		return;
+	}
+
+	Node *curr = *head;
+	while (curr->next != NULL && curr->next->exp > exp)
+	{
+		curr = curr->next;
+	}
+
+	/* Same exponent already exists -> combine coefficients */
+	if (curr->exp == exp)
+	{
+		curr->coeff += coeff;
+		free(newNode);
+		if (curr->coeff == 0)
+		{
+			/* Need to remove this node from the list */
+			Node *toDelete = curr;
+			/* Find predecessor (or handle head case) */
+			if (*head == curr)
+			{
+				*head = curr->next;
+			}
+			else
+			{
+				Node *prev = *head;
+				while (prev->next != curr)
+					prev = prev->next;
+				prev->next = curr->next;
+			}
+			free(toDelete);
+		}
+		return;
+	}
+
+	if (curr->next != NULL && curr->next->exp == exp)
+	{
+		curr->next->coeff += coeff;
+		free(newNode);
+		if (curr->next->coeff == 0)
+		{
+			Node *toDelete = curr->next;
+			curr->next = toDelete->next;
+			free(toDelete);
+		}
+		return;
+	}
+
+	newNode->next = curr->next;
+	curr->next = newNode;
+}
+
+/* ---------- Read a polynomial from the user ---------- */
+Node *inputPolynomial()
+{
+	Node *head = NULL;
+	int n, coeff, exp;
+
+	printf("Enter number of terms: ");
+	n = readInt();
+
+	for (int i = 0; i < n; i++)
+	{
+		printf("Term %d -> coefficient: ", i + 1);
+		coeff = readInt();
+		printf("Term %d -> exponent: ", i + 1);
+		exp = readInt();
+		insertTerm(&head, coeff, exp);
+	}
+	return head;
+}
+
+/* ---------- Display a polynomial ---------- */
+void displayPolynomial(Node *head)
+{
+	if (head == NULL)
+	{
+		printf("0\n");
+		return;
+	}
+
+	Node *curr = head;
+	int first = 1;
+	while (curr != NULL)
+	{
+		if (!first && curr->coeff > 0)
+			printf(" + ");
+		else if (!first && curr->coeff < 0)
+			printf(" - ");
+		else if (first && curr->coeff < 0)
+			printf("-");
+
+		int printCoeff = abs(curr->coeff);
+
+		if (curr->exp == 0)
+		{
+			printf("%d", printCoeff);
+		}
+		else if (curr->exp == 1)
+		{
+			printf("%dx", printCoeff);
+		}
+		else
+		{
+			printf("%dx^%d", printCoeff, curr->exp);
+		}
+
+		first = 0;
+		curr = curr->next;
+	}
+	printf("\n");
+}
+
+/* ---------- Add two polynomials ---------- */
+Node *addPolynomials(Node *poly1, Node *poly2)
+{
+	Node *result = NULL;
+	Node *p1 = poly1, *p2 = poly2;
+
+	while (p1 != NULL)
+	{
+		insertTerm(&result, p1->coeff, p1->exp);
+		p1 = p1->next;
+	}
+	while (p2 != NULL)
+	{
+		insertTerm(&result, p2->coeff, p2->exp);
+		p2 = p2->next;
+	}
+	return result;
+}
+
+/* ---------- Subtract poly2 from poly1 ---------- */
+Node *subtractPolynomials(Node *poly1, Node *poly2)
+{
+	Node *result = NULL;
+	Node *p1 = poly1, *p2 = poly2;
+
+	while (p1 != NULL)
+	{
+		insertTerm(&result, p1->coeff, p1->exp);
+		p1 = p1->next;
+	}
+	while (p2 != NULL)
+	{
+		insertTerm(&result, -(p2->coeff), p2->exp);
+		p2 = p2->next;
+	}
+	return result;
+}
+
+/* ---------- Multiply two polynomials ---------- */
+Node *multiplyPolynomials(Node *poly1, Node *poly2)
+{
+	Node *result = NULL;
+	Node *p1 = poly1;
+
+	while (p1 != NULL)
+	{
+		Node *p2 = poly2;
+		while (p2 != NULL)
+		{
+			insertTerm(&result, p1->coeff * p2->coeff, p1->exp + p2->exp);
+			p2 = p2->next;
+		}
+		p1 = p1->next;
+	}
+	return result;
+}
+
+/* ---------- Derivative of a polynomial ---------- */
+Node *derivativePolynomial(Node *poly)
+{
+	Node *result = NULL;
+	Node *curr = poly;
+
+	while (curr != NULL)
+	{
+		if (curr->exp != 0)
+		{ /* derivative of a constant is 0 */
+			insertTerm(&result, curr->coeff * curr->exp, curr->exp - 1);
+		}
+		curr = curr->next;
+	}
+	return result;
+}
+
+/* ---------- Evaluate a polynomial at a given x ---------- */
+double evaluatePolynomial(Node *poly, double x)
+{
+	double sum = 0.0;
+	Node *curr = poly;
+
+	while (curr != NULL)
+	{
+		double term = curr->coeff;
+		for (int i = 0; i < curr->exp; i++)
+		{
+			term *= x;
+		}
+		sum += term;
+		curr = curr->next;
+	}
+	return sum;
+}
+
+/* ---------- Helper: deep copy a polynomial ---------- */
+Node *copyPolynomial(Node *poly)
+{
+	Node *result = NULL;
+	Node *curr = poly;
+	while (curr != NULL)
+	{
+		insertTerm(&result, curr->coeff, curr->exp);
+		curr = curr->next;
+	}
+	return result;
+}
+
+/*
+   Divide poly1 by poly2 using polynomial long division.
+   Produces *quotient and *remainder.
+   Note: uses integer coefficient division (typical for
+   student projects); if coefficients don't divide evenly,
+   the quotient term is rounded toward zero.
+   Returns 0 on success, -1 if poly2 is the zero polynomial.
+*/
+int dividePolynomials(Node *poly1, Node *poly2, Node **quotient, Node **remainder)
+{
+	if (poly2 == NULL)
+		return -1; /* division by zero polynomial */
+
+	*quotient = NULL;
+	*remainder = copyPolynomial(poly1);
+
+	int divCoeff = poly2->coeff; /* leading term of divisor */
+	int divExp = poly2->exp;
+
+	while (*remainder != NULL && (*remainder)->exp >= divExp)
+	{
+		int termCoeff = (*remainder)->coeff / divCoeff;
+		int termExp = (*remainder)->exp - divExp;
+
+		if (termCoeff == 0)
+			break; /* leading coeff not evenly divisible -> stop */
+
+		insertTerm(quotient, termCoeff, termExp);
+
+		/* remainder -= termCoeff*x^termExp * poly2 */
+		Node *singleTerm = createNode(termCoeff, termExp);
+		singleTerm->next = NULL;
+		Node *toSubtract = multiplyPolynomials(singleTerm, poly2);
+		free(singleTerm);
+
+		Node *newRemainder = subtractPolynomials(*remainder, toSubtract);
+		freePolynomial(*remainder);
+		freePolynomial(toSubtract);
+		*remainder = newRemainder;
+	}
+	return 0;
+}
+
+/* ---------- Free memory of a polynomial list ---------- */
+void freePolynomial(Node *head)
+{
+	Node *temp;
+	while (head != NULL)
+	{
+		temp = head;
+		head = head->next;
+		free(temp);
+	}
+}
+
+/* ---------- Main menu ---------- */
+int main()
+{
+	Node *poly1 = NULL, *poly2 = NULL, *result = NULL;
+	int choice;
+
+	do
+	{
+		printf("\n===== Polynomial Calculator (Linked List) =====\n");
+		printf("1. Enter Polynomial 1\n");
+		printf("2. Enter Polynomial 2\n");
+		printf("3. Display Polynomial 1\n");
+		printf("4. Display Polynomial 2\n");
+		printf("5. Add Polynomials (P1 + P2)\n");
+		printf("6. Subtract Polynomials (P1 - P2)\n");
+		printf("7. Multiply Polynomials (P1 * P2)\n");
+		printf("8. Derivative of Polynomial 1\n");
+		printf("9. Derivative of Polynomial 2\n");
+		printf("10. Evaluate Polynomial 1 at x\n");
+		printf("11. Evaluate Polynomial 2 at x\n");
+		printf("12. Divide Polynomials (P1 / P2)\n");
+		printf("0. Exit\n");
+		printf("Enter your choice: ");
+		choice = readInt();
+
+		switch (choice)
+		{
+		case 1:
+			freePolynomial(poly1);
+			printf("\n--- Enter Polynomial 1 ---\n");
+			poly1 = inputPolynomial();
+			break;
+		case 2:
+			freePolynomial(poly2);
+			printf("\n--- Enter Polynomial 2 ---\n");
+			poly2 = inputPolynomial();
+			break;
+		case 3:
+			printf("Polynomial 1: ");
+			displayPolynomial(poly1);
+			break;
+		case 4:
+			printf("Polynomial 2: ");
+			displayPolynomial(poly2);
+			break;
+		case 5:
+			freePolynomial(result);
+			result = addPolynomials(poly1, poly2);
+			printf("Result (P1 + P2): ");
+			displayPolynomial(result);
+			break;
+		case 6:
+			freePolynomial(result);
+			result = subtractPolynomials(poly1, poly2);
+			printf("Result (P1 - P2): ");
+			displayPolynomial(result);
+			break;
+		case 7:
+			freePolynomial(result);
+			result = multiplyPolynomials(poly1, poly2);
+			printf("Result (P1 * P2): ");
+			displayPolynomial(result);
+			break;
+		case 8:
+		{
+			Node *deriv1 = derivativePolynomial(poly1);
+			printf("d/dx (P1): ");
+			displayPolynomial(deriv1);
+			freePolynomial(deriv1);
+			break;
+		}
+		case 9:
+		{
+			Node *deriv2 = derivativePolynomial(poly2);
+			printf("d/dx (P2): ");
+			displayPolynomial(deriv2);
+			freePolynomial(deriv2);
+			break;
+		}
+		case 10:
+		{
+			double x;
+			printf("Enter value of x: ");
+			x = readDouble();
+			printf("P1(%.2f) = %.4f\n", x, evaluatePolynomial(poly1, x));
+			break;
+		}
+		case 11:
+		{
+			double x;
+			printf("Enter value of x: ");
+			x = readDouble();
+			printf("P2(%.2f) = %.4f\n", x, evaluatePolynomial(poly2, x));
+			break;
+		}
+		case 12:
+		{
+			if (poly2 == NULL)
+			{
+				printf("Cannot divide by the zero polynomial!\n");
+				break;
+			}
+			Node *quotient = NULL, *remainder = NULL;
+			dividePolynomials(poly1, poly2, &quotient, &remainder);
+			printf("Quotient (P1 / P2): ");
+			displayPolynomial(quotient);
+			printf("Remainder: ");
+			displayPolynomial(remainder);
+			freePolynomial(quotient);
+			freePolynomial(remainder);
+			break;
+		}
+		case 0:
+			printf("Exiting... Goodbye!\n");
+			break;
+		default:
+			printf("Invalid choice, try again.\n");
+		}
+	} while (choice != 0);
+
+	freePolynomial(poly1);
+	freePolynomial(poly2);
+	freePolynomial(result);
+
+	return 0;
+}
